@@ -20,24 +20,26 @@ This demo showcases:
 
 ### Required Environment Variables
 
-Set these environment variables in your Gitpod/development environment:
+Set these environment variables in your development environment:
 
 ```bash
 # AWS Credentials (required)
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"  # or your preferred region
+export AWS_SESSION_TOKEN="your-session-token"  # if using temporary credentials
+export AWS_DEFAULT_REGION="us-east-2"  # or your preferred region
 ```
 
 ### AWS Permissions Required
 
 Your AWS credentials need permissions for:
-- ✅ EKS cluster creation and management
+- ✅ EKS cluster creation and management (`eksctl`)
 - ✅ ECR repository creation and image push
 - ✅ Application Load Balancer creation
-- ✅ IAM role and policy management
+- ✅ IAM role and policy management (for OIDC provider and service accounts)
 - ✅ VPC and networking resources
 - ✅ EC2 instance management (for EKS nodes)
+- ✅ CloudFormation stack management
 
 ### Recommended IAM Policies
 
@@ -48,6 +50,9 @@ Attach these AWS managed policies to your IAM user/role:
 - `ElasticLoadBalancingFullAccess`
 - `IAMFullAccess` (or specific permissions for role creation)
 - `AmazonVPCFullAccess`
+- `AWSCloudFormationFullAccess`
+
+**Note**: For production use, create a custom IAM policy with least-privilege permissions.
 
 ## The Application
 
@@ -118,12 +123,13 @@ I want to migrate an OpenShift application to Amazon EKS. Please do the followin
 
 Migration Guidelines:
 - Review the migration documentation in the `docs/` folder for best practices
-- Use AWS Load Balancer Controller for ingress
+- Use AWS Load Balancer Controller for ingress (will be installed automatically)
 - Use Amazon ECR for container images
 - Apply Pod Security Standards for security policies
 - Maintain the same application functionality as the OpenShift version
 - Use the existing Helm chart structure, just update the templates to remove OpenShift-specific resources
 - Ensure proper security context (non-root user, dropped capabilities)
+- Build and push the container image to ECR before deploying
 
 Testing Requirements:
 - Application must be accessible via the ALB/ingress endpoint
@@ -136,11 +142,13 @@ Testing Requirements:
 - Application must run with non-root user (UID 1001) and proper security context
 
 Important Notes:
-- If you encounter AWS authentication or permission issues, ask me to configure the necessary credentials or permissions
+- If you encounter AWS authentication or permission issues, verify your credentials and IAM permissions
+- The migration will take approximately 20-30 minutes (mostly EKS cluster creation)
 - Document all changes made to the Helm chart and Kubernetes manifests
 - Keep track of the ALB/ingress URL for testing
+- Remember to clean up AWS resources after the demo to avoid ongoing costs
 
-Use the AWS CLI, kubectl, and helm to interact with AWS and EKS.
+Use the AWS CLI, kubectl, helm, and eksctl to interact with AWS and EKS.
 ```
 
 ---
@@ -150,12 +158,15 @@ Use the AWS CLI, kubectl, and helm to interact with AWS and EKS.
 After running the prompt, you should have:
 
 1. ✅ EKS cluster created and configured (`task-manager-eks`)
-2. ✅ AWS Load Balancer Controller installed on the cluster
-3. ✅ ECR repository created with the task-manager image
-4. ✅ Application Helm chart migrated to remove OpenShift-specific resources
-5. ✅ Application deployed and running on EKS in the `task-manager` namespace
-6. ✅ Application Load Balancer provisioned and accessible
-7. ✅ Application verified working (health check and API tests passing)
+2. ✅ AWS Load Balancer Controller installed on the cluster with IAM OIDC provider
+3. ✅ ECR repository created (`task-manager`)
+4. ✅ Container image built and pushed to ECR
+5. ✅ Application Helm chart migrated to remove OpenShift-specific resources
+6. ✅ Application deployed and running on EKS in the `task-manager` namespace
+7. ✅ Application Load Balancer provisioned and accessible
+8. ✅ Application verified working (health check and API tests passing)
+
+**Note**: The entire migration process takes approximately 20-30 minutes, with most time spent on EKS cluster creation (15-20 minutes).
 
 ## What Gets Migrated
 
@@ -211,25 +222,49 @@ kubectl describe ingress task-manager -n task-manager
 
 ## Cleanup
 
+⚠️ **Important**: Always clean up AWS resources after the demo to avoid ongoing costs.
+
 To remove all AWS resources created during the demo:
 
 ```bash
-# Delete the application
+# 1. Delete the Helm release and namespace
 helm uninstall task-manager -n task-manager
 kubectl delete namespace task-manager
 
-# Delete the EKS cluster (this will take several minutes)
-aws eks delete-cluster --name task-manager-eks
+# 2. Delete the EKS cluster (takes 10-15 minutes)
+eksctl delete cluster --name task-manager-eks --region us-east-2
 
-# Delete node group first
-aws eks delete-nodegroup --cluster-name task-manager-eks --nodegroup-name <nodegroup-name>
+# 3. Delete ECR repository
+aws ecr delete-repository --repository-name task-manager --force --region us-east-2
 
-# Delete ECR repository
-aws ecr delete-repository --repository-name task-manager --force
-
-# Or use eksctl if available
-eksctl delete cluster --name task-manager-eks
+# 4. Delete IAM policy
+aws iam delete-policy --policy-arn arn:aws:iam::<account-id>:policy/AWSLoadBalancerControllerIAMPolicy
 ```
+
+**Note**: The `eksctl delete cluster` command will automatically clean up:
+- Node groups
+- IAM roles and service accounts
+- OIDC provider
+- VPC and networking resources
+- CloudFormation stacks
+
+## Known Limitations
+
+### Container Image Build
+
+The demo may encounter issues building the container image in certain environments (e.g., Gitpod) due to Docker daemon availability. If this occurs:
+
+1. **Build locally**: Use a machine with Docker installed
+2. **Use AWS CodeBuild**: Set up a build pipeline
+3. **Use GitHub Actions**: Automate builds on commit
+
+See the application's `Dockerfile` in `openshift-task-manager/` for build instructions.
+
+### Time Requirements
+
+- **EKS Cluster Creation**: 15-20 minutes
+- **Cluster Deletion**: 10-15 minutes
+- **Total Migration Time**: ~30 minutes
 
 ## Cost Considerations
 
@@ -241,7 +276,7 @@ Running this demo will incur AWS costs:
 
 **Estimated cost**: ~$0.20-0.30/hour while running
 
-**💡 Tip**: Delete resources when not in use to minimize costs.
+**💡 Tip**: Always delete resources immediately after the demo to minimize costs. The cleanup process takes 10-15 minutes.
 
 ## Learn More
 
