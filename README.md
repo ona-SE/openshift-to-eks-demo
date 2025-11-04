@@ -10,11 +10,18 @@ This demo showcases:
 - **AWS infrastructure setup**: Automated EKS cluster creation, ECR setup, and Load Balancer Controller installation
 - **End-to-end deployment**: From source code to running application on EKS
 
+## Source Application
+
+The demo uses the **OpenShift Task Manager** application from the [shift-eks](https://github.com/gitpod-samples/shift-eks) repository, which includes:
+- A Flask-based task management application using OpenShift-specific features
+- Complete documentation of OpenShift features that need migration
+- Helm charts with OpenShift-specific resources
+
 ## What's Included
 
-- **`openshift-task-manager/`** - A Flask-based task management application using OpenShift-specific features
-- **`OPENSHIFT_FEATURES_SUMMARY.md`** - Detailed documentation of OpenShift features that need migration
+- **`migrated-helm-chart/`** - Example of the migrated Helm chart (EKS-compatible)
 - **Migration prompt** - Ready-to-use prompt for Ona AI (see below)
+- **Documentation** - This README with setup instructions
 
 ## Prerequisites
 
@@ -54,9 +61,9 @@ Attach these AWS managed policies to your IAM user/role:
 
 **Note**: For production use, create a custom IAM policy with least-privilege permissions.
 
-## The Application
+## OpenShift to EKS Feature Mapping
 
-The **OpenShift Task Manager** is a demonstration application that uses these OpenShift-specific features:
+The migration converts these OpenShift-specific features to EKS equivalents:
 
 | Feature | OpenShift API | EKS Equivalent |
 |---------|---------------|----------------|
@@ -68,7 +75,7 @@ The **OpenShift Task Manager** is a demonstration application that uses these Op
 | BuildConfig | `build.openshift.io/v1` | External CI/CD |
 | Templates | `template.openshift.io/v1` | Helm Charts |
 
-See [`OPENSHIFT_FEATURES_SUMMARY.md`](./OPENSHIFT_FEATURES_SUMMARY.md) for detailed explanations.
+See the [shift-eks repository](https://github.com/gitpod-samples/shift-eks) for detailed documentation of OpenShift features.
 
 ## Quick Start
 
@@ -95,8 +102,8 @@ Copy and paste this prompt to Ona AI:
 ```
 I want to migrate an OpenShift application to Amazon EKS. Please do the following:
 
-1. Examine the OpenShift task-manager application in the `openshift-task-manager/` directory
-2. Review the OpenShift-specific features documented in `OPENSHIFT_FEATURES_SUMMARY.md`
+1. Clone the repository https://github.com/gitpod-samples/shift-eks to examine the OpenShift task-manager application
+2. Review the OpenShift-specific features documented in `OPENSHIFT_FEATURES_SUMMARY.md` and the application in `openshift-task-manager/`
 3. Check if an EKS cluster already exists in AWS, otherwise create a new EKS cluster with:
    - Cluster name: `task-manager-eks`
    - Node group with 2 t3.medium instances
@@ -122,14 +129,15 @@ I want to migrate an OpenShift application to Amazon EKS. Please do the followin
    - Completing and deleting tasks
 
 Migration Guidelines:
-- Review the migration documentation in the `docs/` folder for best practices
+- Review the migration documentation in the shift-eks `docs/` folder for best practices
 - Use AWS Load Balancer Controller for ingress (will be installed automatically)
 - Use Amazon ECR for container images
 - Apply Pod Security Standards for security policies
 - Maintain the same application functionality as the OpenShift version
-- Use the existing Helm chart structure, just update the templates to remove OpenShift-specific resources
+- Use the existing Helm chart structure from shift-eks, just update the templates to remove OpenShift-specific resources
 - Ensure proper security context (non-root user, dropped capabilities)
 - Build and push the container image to ECR before deploying
+- Save the migrated Helm chart to this repository for reference
 
 Testing Requirements:
 - Application must be accessible via the ALB/ingress endpoint
@@ -280,11 +288,10 @@ Running this demo will incur AWS costs:
 
 ## Learn More
 
-- [OpenShift to EKS Migration Guide](./openshift-task-manager/OPENSHIFT_TO_EKS_MIGRATION.md)
-- [OpenShift Features Summary](./OPENSHIFT_FEATURES_SUMMARY.md)
-- [Quick Start Guide](./docs/QUICKSTART.md)
-- [Architecture Documentation](./docs/ARCHITECTURE.md)
-- [Final Summary](./docs/FINAL_SUMMARY.md)
+- [shift-eks Repository](https://github.com/gitpod-samples/shift-eks) - Source OpenShift application
+- [OpenShift to EKS Migration Guide](https://github.com/gitpod-samples/shift-eks/blob/main/openshift-task-manager/OPENSHIFT_TO_EKS_MIGRATION.md)
+- [OpenShift Features Summary](https://github.com/gitpod-samples/shift-eks/blob/main/OPENSHIFT_FEATURES_SUMMARY.md)
+- [Migrated Helm Chart](./migrated-helm-chart/) - Example result of the migration
 
 ## License
 

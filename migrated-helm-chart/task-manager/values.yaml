@@ -1,0 +1,52 @@
+replicaCount: 2
+
+image:
+  # Update with your ECR repository
+  repository: <account-id>.dkr.ecr.<region>.amazonaws.com/task-manager
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: alb
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+# OpenShift-specific settings (disabled for EKS)
+openshift:
+  useDeploymentConfig: false
+  useImageStream: false
+  scc:
+    enabled: false
+
+# OpenShift Route (disabled for EKS)
+route:
+  enabled: false
+
+# OpenShift Template (disabled for EKS)
+template:
+  enabled: false
