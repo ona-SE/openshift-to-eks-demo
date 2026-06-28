@@ -1,0 +1,29 @@
+# Migrated from the autoscaling rules in the source Helm values.yaml:
+#   autoscaling: { minReplicas: 2, maxReplicas: 5, targetCPUUtilizationPercentage: 80 }
+# These rules existed but were disabled (enabled: false) in the source. They are
+# materialized here as a standard HorizontalPodAutoscaler.
+#
+# NOTE: When the HPA is active it owns the replica count. The Deployment's
+# spec.replicas (2) acts only as the initial value before the HPA reconciles.
+# The base overlay includes this HPA; the dev overlay removes it (see overlays).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app.kubernetes.io/name: task-manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: task-manager
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80

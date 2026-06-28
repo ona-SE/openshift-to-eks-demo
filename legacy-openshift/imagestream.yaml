@@ -1,0 +1,24 @@
+# DEPRECATED — OpenShift ImageStream.
+# Replaced by direct ECR image references in k8s/base/deployment.yaml and the
+# per-environment image overrides in k8s/overlays/*/kustomization.yaml.
+# Kept for reference only. Do NOT apply to the EKS cluster.
+#
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app: task-manager
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: task-manager:latest
+      importPolicy:
+        scheduled: true
+      referencePolicy:
+        type: Local

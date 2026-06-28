@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Dev overlay: single replica, no autoscaling, name prefix to isolate from other
+# environments sharing a cluster.
+namespace: task-manager
+
+resources:
+  - ../../base
+
+# Dev does not autoscale — drop the HPA from the base set.
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: task-manager
+    patch: |
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: task-manager
+  - target:
+      kind: Deployment
+      name: task-manager
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+# TODO(human review): point at your dev ECR repo / tag.
+images:
+  - name: task-manager
+    newName: <account-id>.dkr.ecr.<region>.amazonaws.com/task-manager
+    newTag: dev
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/environment: dev

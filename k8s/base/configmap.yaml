@@ -1,0 +1,12 @@
+# Non-sensitive runtime configuration.
+# The application reads PORT from the environment (app/app.py: os.environ.get('PORT', 8080)).
+# Add further non-secret settings here as the application grows.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-manager-config
+  namespace: task-manager
+  labels:
+    app.kubernetes.io/name: task-manager
+data:
+  PORT: "8080"

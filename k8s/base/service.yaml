@@ -1,0 +1,19 @@
+# Internal ClusterIP service. Unchanged in spirit from the OpenShift Service
+# (the OpenShift Template defined an identical ClusterIP service on port 8080).
+# External traffic is handled by ingress.yaml (replacing the OpenShift Route).
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app.kubernetes.io/name: task-manager
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: task-manager

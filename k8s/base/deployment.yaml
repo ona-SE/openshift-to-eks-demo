@@ -1,0 +1,99 @@
+# Migrated from legacy-openshift/deploymentconfig.yaml (OpenShift DeploymentConfig).
+#
+# Mapping notes:
+#   - kind DeploymentConfig (apps.openshift.io/v1) -> Deployment (apps/v1)
+#   - OpenShift "triggers: ConfigChange" is implicit in a Deployment (any spec
+#     change triggers a rollout), so no explicit trigger is needed.
+#   - OpenShift "strategy: Rolling" with maxUnavailable/maxSurge 25% maps directly
+#     to the Deployment RollingUpdate strategy below.
+#   - ImageStream reference (legacy-openshift/imagestream.yaml) is replaced by a
+#     direct image reference. The image value is overridden per environment via
+#     the kustomize overlays.
+#   - SecurityContextConstraints (legacy-openshift/scc.yaml) are enforced via the
+#     pod/container securityContext below plus the namespace Pod Security Standards
+#     labels (restricted) in namespace.yaml.
+#
+# Behavior preserved from the source: probes, resource requests/limits, ports,
+# non-root UID 1001, dropped capabilities, no privilege escalation.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app.kubernetes.io/name: task-manager
+    app.kubernetes.io/component: api
+spec:
+  # NOTE: replicas raised from the DeploymentConfig's 1 to 2 to match the Helm
+  # chart default and provide availability during rolling updates. When the HPA
+  # (hpa.yaml) is enabled, remove or ignore this field so the autoscaler owns it.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: task-manager
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: task-manager
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: task-manager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: task-manager
+          # Overridden per environment by the kustomize overlays (newName/newTag).
+          # Replace with your ECR repository, e.g.:
+          #   <account-id>.dkr.ecr.<region>.amazonaws.com/task-manager:latest
+          image: task-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: task-manager-config
+            - secretRef:
+                name: task-manager-secrets
+                optional: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+            # The source app writes nothing to the root filesystem, but the
+            # original SCC set readOnlyRootFilesystem: false. Preserved as-is.
+            # TODO(human review): consider readOnlyRootFilesystem: true with an
+            # emptyDir mount for /tmp to harden further.
+            readOnlyRootFilesystem: false

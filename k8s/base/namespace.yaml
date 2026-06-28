@@ -1,0 +1,14 @@
+# Migrated from legacy-openshift/project.yaml (OpenShift Project).
+# OpenShift Projects map to standard Kubernetes Namespaces.
+# Pod Security Standards labels replace the OpenShift SecurityContextConstraints
+# (see legacy-openshift/scc.yaml). "restricted" enforces non-root, no privilege
+# escalation, and dropped capabilities — matching the original SCC intent.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-manager
+  labels:
+    app.kubernetes.io/name: task-manager
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
