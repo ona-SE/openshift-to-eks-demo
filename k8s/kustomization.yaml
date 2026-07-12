@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base manifests shared by all environments. The namespace is set centrally so
+# every resource lands in task-manager without per-file duplication.
+namespace: task-manager
+
+labels:
+  - pairs:
+      app: task-manager
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+# Autoscaling is intentionally excluded from base; overlays that want it
+# (staging, prod) include the components/autoscaling component.

@@ -1,0 +1,94 @@
+# Replaces the OpenShift DeploymentConfig (openshift-resources/deploymentconfig.yaml).
+# Behavior preserved: rolling update (maxUnavailable/maxSurge 25%), liveness and
+# readiness probes on /health, resource requests/limits, and the non-root
+# securityContext (UID 1001, drop ALL capabilities, no privilege escalation).
+#
+# ImageStream trigger-based rollouts are replaced by CI/CD updating the image
+# reference; the image below is a placeholder patched per environment in
+# overlays/*.
+#
+# TODO(human-review): The application stores tasks in-memory (app.py: `tasks = []`),
+# so state is NOT shared across gunicorn workers or across replicas. This matches
+# the original OpenShift behavior (which also ran multiple replicas/workers) and
+# is preserved here unchanged. Before scaling beyond a single instance in a way
+# that requires consistent state, back the app with a shared store (e.g. Postgres
+# or Redis) and add the corresponding Service/Secret/env wiring.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-manager
+  labels:
+    app: task-manager
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: task-manager
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: task-manager
+    spec:
+      serviceAccountName: task-manager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: task-manager
+          # TODO(human-review): replace with your registry image, e.g.
+          # <account-id>.dkr.ecr.<region>.amazonaws.com/task-manager
+          # Overlays patch this per environment (see overlays/*).
+          image: task-manager:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: task-manager-config
+                  key: PORT
+          # Enable once task-manager-secrets contains real keys (see secret.yaml).
+          # envFrom:
+          #   - secretRef:
+          #       name: task-manager-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+            # The app writes nothing to the root filesystem at runtime, but the
+            # OpenShift SCC set readOnlyRootFilesystem: false, so it is preserved
+            # here to avoid changing behavior.
+            readOnlyRootFilesystem: false

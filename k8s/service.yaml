@@ -1,0 +1,17 @@
+# ClusterIP service for internal traffic (unchanged from OpenShift; Services are
+# standard Kubernetes). External access is provided by ingress.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-manager
+  labels:
+    app: task-manager
+spec:
+  type: ClusterIP
+  selector:
+    app: task-manager
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

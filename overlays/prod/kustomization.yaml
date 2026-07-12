@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Prod environment: 3 baseline replicas with autoscaling (2-10, 70% CPU).
+namespace: task-manager
+
+resources:
+  - ../../k8s
+
+components:
+  - ../../components/autoscaling
+
+namePrefix: prod-
+
+labels:
+  - pairs:
+      environment: prod
+    includeSelectors: false
+
+replicas:
+  - name: task-manager
+    count: 3
+
+images:
+  - name: task-manager
+    # TODO(human-review): point at your prod registry/repo and pin an immutable tag.
+    newName: task-manager
+    newTag: prod
+
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: task-manager
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+      - op: replace
+        path: /spec/metrics/0/resource/target/averageUtilization
+        value: 70

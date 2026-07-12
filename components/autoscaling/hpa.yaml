@@ -1,0 +1,26 @@
+# HorizontalPodAutoscaler derived from the autoscaling block in the upstream
+# Helm values (minReplicas: 2, maxReplicas: 5, targetCPUUtilizationPercentage:
+# 80). Autoscaling was disabled by default upstream; here it is defined but only
+# included in overlays that opt in (staging, prod). See overlays/*.
+#
+# Requires the Kubernetes metrics-server to be installed in the cluster.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: task-manager
+  labels:
+    app: task-manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: task-manager
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80

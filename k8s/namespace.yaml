@@ -1,0 +1,18 @@
+# Replaces the OpenShift Project (openshift-resources/project.yaml).
+# Pod Security Standards labels enforce the "restricted" profile, which is the
+# Kubernetes equivalent of the SecurityContextConstraints previously applied
+# (non-root, no privilege escalation, drop ALL capabilities).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-manager
+  labels:
+    app: task-manager
+    environment: demo
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    # Preserved from the OpenShift Project for provenance.
+    openshift.io/display-name: "Task Manager"
+    openshift.io/description: "Task Manager application migrated from OpenShift to EKS"

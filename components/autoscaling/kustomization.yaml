@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Opt-in autoscaling. Overlays that want an HPA reference this component
+# instead of pulling the manifest directly (Kustomize forbids referencing files
+# outside an overlay's directory tree).
+resources:
+  - hpa.yaml

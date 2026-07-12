@@ -1,0 +1,13 @@
+# Non-sensitive configuration for the Task Manager service.
+# The application reads PORT (app.py: os.environ.get('PORT', 8080)).
+# TODO(human-review): The upstream app has no other documented env vars or
+# external dependencies (in-memory task store, no DB/cache/queue). Add keys here
+# if additional configuration is introduced.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-manager-config
+  labels:
+    app: task-manager
+data:
+  PORT: "8080"
