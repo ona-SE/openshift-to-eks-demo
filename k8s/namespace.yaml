@@ -16,3 +16,4 @@ metadata:
     # Preserved from the OpenShift Project for provenance.
     openshift.io/display-name: "Task Manager"
     openshift.io/description: "Task Manager application migrated from OpenShift to EKS"
+

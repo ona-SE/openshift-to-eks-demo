@@ -16,6 +16,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: task-manager
+  namespace: task-manager
   labels:
     app: task-manager
   annotations:

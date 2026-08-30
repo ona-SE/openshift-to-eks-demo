@@ -1,8 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Base manifests shared by all environments. The namespace is set centrally so
-# every resource lands in task-manager without per-file duplication.
+# Default behavior matches the existing deployment: two replicas with
+# autoscaling disabled. hpa.yaml is available for explicit opt-in.
 namespace: task-manager
 
 labels:
@@ -18,5 +18,3 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
-# Autoscaling is intentionally excluded from base; overlays that want it
-# (staging, prod) include the components/autoscaling component.

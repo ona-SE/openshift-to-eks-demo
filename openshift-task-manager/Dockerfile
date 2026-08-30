@@ -26,7 +26,8 @@ COPY app/ .
 RUN useradd -u 1001 -r -g 0 -m -s /sbin/nologin \
     -c "Application user" appuser && \
     chown -R 1001:0 /app && \
-    chmod -R g=u /app
+    chmod -R g=u /app && \
+    chmod 1777 /tmp
 
 USER 1001
 

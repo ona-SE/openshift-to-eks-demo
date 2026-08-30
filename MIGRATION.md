@@ -1,153 +1,168 @@
-# OpenShift → Kubernetes Migration
+# OpenShift to Kubernetes migration
 
-This document records the migration of the **Task Manager** service from its
-OpenShift-specific deployment model to standard Kubernetes manifests.
+This repository now contains a standard Kubernetes deployment for the Task
+Manager service. The service source and original OpenShift resources were
+restored from repository history so the migration is buildable and auditable.
+The OpenShift files remain under `openshift-task-manager/openshift-resources/`
+with deprecation banners and unchanged resource specifications.
 
-## What was migrated
+## Runtime inventory
 
-The service previously relied on OpenShift-only resources (the "custom
-orchestrator" configuration). Each has been replaced with a standard Kubernetes
-equivalent. The original OpenShift files are **preserved** with `DEPRECATED:`
-banners (they are not deployed) so the change is reviewable and reversible.
-
-| OpenShift resource (source) | Kubernetes replacement | Notes |
+| Concern | Existing behavior | Kubernetes mapping |
 |---|---|---|
-| `DeploymentConfig` (`openshift-task-manager/openshift-resources/deploymentconfig.yaml`) | `Deployment` (`k8s/deployment.yaml`) | RollingUpdate 25%/25%, `/health` probes, resource requests/limits, non-root securityContext all preserved. |
-| `Route` (in `template.yaml`) | `Ingress` (`k8s/ingress.yaml`) | AWS ALB Ingress. Edge TLS + HTTP→HTTPS redirect not reproduced yet (needs ACM cert — see TODOs). |
-| `ImageStream` (`imagestream.yaml`) | Direct registry image reference (`k8s/deployment.yaml` `image:`) | No K8s equivalent; images come from a registry (ECR), patched per env in `overlays/*`. |
-| `SecurityContextConstraints` (`scc.yaml`) | Pod `securityContext` + Pod Security Standards (`k8s/deployment.yaml`, `k8s/namespace.yaml`) | Non-root UID 1001, drop ALL caps, no privilege escalation; namespace enforces the `restricted` profile. |
-| `Project` (`project.yaml`) | `Namespace` (`k8s/namespace.yaml`) | |
-| `Template` (`template.yaml`) | Kustomize (`k8s/` base + `overlays/{dev,staging,prod}`) | Parameterization via overlays instead of Template parameters. |
-| `BuildConfig` (`buildconfig.yaml`) | External CI/CD build of the `Dockerfile` → registry (ECR) | In-cluster builds replaced by pipeline builds. |
+| Runtime and entry point | Python 3.11; Gunicorn runs `app:app` with two workers | Preserved by `openshift-task-manager/Dockerfile` |
+| Build | OpenShift `BuildConfig` using the Dockerfile and an `ImageStream` output | Build externally, push to a registry, and replace the TODO image reference |
+| Network | HTTP on container/service port 8080; external edge-TLS `Route` with HTTP-to-HTTPS redirect | ClusterIP `Service` plus AWS ALB `Ingress` |
+| Health | HTTP `GET /health`; readiness delay 10s/period 5s; liveness delay 30s/period 10s | Preserved in the `Deployment` |
+| Resources | Request 100m CPU/128Mi; limit 500m CPU/512Mi | Preserved in the `Deployment` |
+| Replicas and rollout | Two replicas in the Helm values; rolling 25% unavailable/25% surge | Preserved in the `Deployment` |
+| Autoscaling | Parameters exist for 2-5 replicas at 80% CPU, but autoscaling is disabled | `k8s/hpa.yaml` is supplied but remains opt-in |
+| Configuration | `PORT=8080`; the production Gunicorn command also binds explicitly to 8080 | ConfigMap-backed environment variable |
+| Secrets | None | Empty Secret object referenced by the pod; values must be supplied out of band if later needed |
+| Storage | No volume mounts or persistent volumes; task data is process-local memory | No Kubernetes volumes added |
+| Dependencies | No database, cache, queue, or other service | No dependency resources added |
+| Security | Non-root UID 1001, no privilege escalation, all capabilities dropped | Pod/container security contexts and restricted Pod Security Standards |
 
-### Service runtime (unchanged)
+The HTTP UI is at `/`; the API uses `/api/tasks`,
+`/api/tasks/{id}/complete`, and `/api/tasks/{id}`. Because task state is
+in-memory, it is neither durable nor shared between the two Gunicorn workers
+or replicas. This pre-existing behavior is intentionally unchanged.
 
-- **Runtime**: Python 3.11, Flask app served by gunicorn (2 workers), listening on
-  `:8080`. Entry point `app:app` in `openshift-task-manager/app/app.py`.
-- **Endpoints**: `GET /` (UI), `GET /health`, `GET/POST /api/tasks`,
-  `PUT /api/tasks/{id}/complete`, `DELETE /api/tasks/{id}`.
-- **Dependencies**: none external — tasks are stored **in-memory** (see TODOs).
-- **Config**: `PORT` env var (defaults to 8080), sourced from a ConfigMap.
+## Resource mapping
 
-## New files created
+| Deprecated OpenShift resource | Replacement |
+|---|---|
+| `Project` | `k8s/namespace.yaml` |
+| `DeploymentConfig` | `k8s/deployment.yaml` |
+| `Route` inside the OpenShift template | `k8s/ingress.yaml` |
+| `ImageStream` | Direct container registry image reference |
+| `SecurityContextConstraints` | Pod Security Standards plus security contexts |
+| `Template` | Base `k8s/kustomization.yaml` and `overlays/{dev,staging,prod}` |
+| `BuildConfig` | External Docker/CI build |
 
-```
-MIGRATION.md                          # this document
-.gitignore                            # Python / env / editor ignores (repo had none)
+## Files created or restored
 
-k8s/                                  # Kubernetes base manifests (flat)
-  kustomization.yaml                  # base kustomization (namespace, common labels)
-  namespace.yaml                      # replaces OpenShift Project; PSS "restricted"
-  serviceaccount.yaml                 # task-manager ServiceAccount
-  configmap.yaml                      # non-sensitive config (PORT)
-  secret.yaml                         # references-only placeholder (no values)
-  deployment.yaml                     # replaces DeploymentConfig
-  service.yaml                        # ClusterIP (internal)
-  ingress.yaml                        # ALB Ingress (replaces Route)
+- `k8s/deployment.yaml` — standard Deployment with probes, resources, rolling
+  updates, ConfigMap/Secret references, and non-root security controls.
+- `k8s/service.yaml` — internal ClusterIP service on port 8080.
+- `k8s/ingress.yaml` — external AWS ALB Ingress replacing the OpenShift Route.
+- `k8s/configmap.yaml` — non-sensitive `PORT` configuration.
+- `k8s/secret.yaml` — empty Secret reference with no committed secret values.
+- `k8s/hpa.yaml` — optional, previously disabled 2-5 replica/80% CPU policy.
+- `k8s/namespace.yaml` and `k8s/serviceaccount.yaml` — namespace, Pod Security
+  Standards labels, and workload identity.
+- `k8s/kustomization.yaml` — conservative base with autoscaling excluded.
+- `overlays/dev/kustomization.yaml`, `overlays/staging/kustomization.yaml`, and
+  `overlays/prod/kustomization.yaml` — environment-specific image/label hooks.
+- `openshift-task-manager/Dockerfile` and `.dockerignore` — external OCI image
+  build replacing the OpenShift BuildConfig build path.
+- `openshift-task-manager/app/app.py` and `app/requirements.txt` — service build
+  context restored from repository history.
+- `openshift-task-manager/openshift-resources/*.yaml` — the six original
+  OpenShift descriptors restored with deprecation comments for rollback.
+- `MIGRATION.md` — this migration record; the root `README.md` was also updated
+  to point contributors to the new deployment path.
 
-components/
-  autoscaling/
-    kustomization.yaml                # opt-in Kustomize component
-    hpa.yaml                          # HorizontalPodAutoscaler (2–5, 80% CPU)
+## Deploy
 
-overlays/                             # environment overlays (Kustomize)
-  dev/kustomization.yaml              # 1 replica, no autoscaling, tag: dev
-  staging/kustomization.yaml          # 2 replicas + HPA, tag: staging
-  prod/kustomization.yaml             # 3 replicas + HPA (2–10, 70% CPU), tag: prod
-
-openshift-task-manager/
-  Dockerfile                          # K8s-oriented image build (non-root UID 1001)
-  .dockerignore
-  app/app.py                          # vendored application source
-  app/requirements.txt
-  openshift-resources/*.yaml          # original OpenShift configs, DEPRECATED banners
-```
-
-> The base manifests live flat in `k8s/` so they are picked up by simple tooling
-> (e.g. `kubectl apply -f k8s/` / `k8s/*.yaml` globs). `overlays/` and
-> `components/` sit at the repo root to avoid a Kustomize "base inside overlay"
-> cycle.
-
-## How to deploy
+First replace `task-manager:latest` with a published registry image in the
+selected overlay. Then render or apply exactly one environment:
 
 ```bash
-# Render a specific environment (offline):
 kubectl kustomize overlays/dev
 kubectl kustomize overlays/staging
 kubectl kustomize overlays/prod
-
-# Apply to a cluster:
 kubectl apply -k overlays/prod
-
-# Or apply the raw base (no env-specific replicas/tags):
-kubectl apply -k k8s
 ```
 
-## TODOs / manual steps before production
+When connected to a cluster, validate the base with
+`kubectl apply --dry-run=client -k k8s`. Do not use `-f k8s/` for deployment:
+that mode treats `kustomization.yaml` as an API object and also includes the
+optional HPA that the base intentionally excludes.
 
-These are also flagged as `TODO(human-review)` comments in the manifests.
+The base preserves the existing disabled-autoscaling behavior. After human
+review, enable the documented policy separately with:
 
-1. **Container image reference** — replace the placeholder `task-manager` image
-   name with your registry (e.g.
-   `<account-id>.dkr.ecr.<region>.amazonaws.com/task-manager`) in each overlay's
-   `images:` block, and pin an immutable tag for prod.
-2. **Ingress TLS** — the OpenShift Route used edge TLS termination with
-   HTTP→HTTPS redirect. The ALB Ingress currently serves **HTTP only**. Provide an
-   ACM certificate ARN and enable the HTTPS listener + `ssl-redirect` annotations
-   in `k8s/ingress.yaml`.
-3. **AWS Load Balancer Controller** — the ALB Ingress requires the
-   [AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/)
-   installed in the cluster.
-4. **metrics-server** — the HPA (staging/prod) requires
-   `metrics-server` installed for CPU metrics.
-5. **Secrets** — `k8s/secret.yaml` is an empty placeholder (the app currently has
-   no credentials). If the service gains secrets, populate them out-of-band
-   (kubectl / External Secrets Operator / Sealed Secrets — never commit values)
-   and uncomment the `envFrom` block in `k8s/deployment.yaml`.
-6. **In-memory state** — tasks are stored per-process, so state is **not shared**
-   across gunicorn workers or replicas (unchanged from OpenShift). Before relying
-   on consistent state at scale, back the app with a shared datastore (e.g.
-   Postgres/Redis) and add the corresponding Service/Secret/env wiring.
-7. **Image build** — build and push the image from
-   `openshift-task-manager/Dockerfile` via CI/CD before deploying (replaces the
-   OpenShift BuildConfig).
+```bash
+kubectl apply -f k8s/hpa.yaml
+```
 
-## Validation performed
+## Human-review TODOs
 
-- `kubectl kustomize` builds cleanly for base (`k8s/`) and all three overlays.
-- `kubeconform -strict` — all resources valid (base 7; dev 7; staging 8; prod 8).
-- `hadolint openshift-task-manager/Dockerfile` — clean.
-- Dockerfile build/run steps reproduced locally (pip install + gunicorn 2
-  workers); `/health` returns 200 and the task API returns 201/200/200/204.
-- PyYAML `safe_load_all` parses every file in `k8s/*.yaml`.
+- Publish the image to ECR or another registry and pin an immutable production
+  tag or digest in the overlays.
+- Supply an ACM certificate ARN and enable the HTTPS listener and SSL redirect
+  annotations in `k8s/ingress.yaml`. Until then, the ALB serves HTTP, which
+  does not fully preserve the original Route's edge TLS and redirect.
+- Install the AWS Load Balancer Controller before applying the Ingress.
+- Decide whether to enable `k8s/hpa.yaml`; install metrics-server first.
+- Keep `k8s/secret.yaml` empty until real credentials exist, then source values
+  from an external secret manager rather than committing them.
+- Add a shared datastore before relying on consistent task state across
+  workers, replicas, restarts, or autoscaling.
 
-> `kubectl apply --dry-run=client` and `helm template | kubectl apply
-> --dry-run=client` contact a cluster API server for resource resolution, and no
-> cluster/Docker daemon is available in this environment. `kubeconform -strict`
-> was used as the offline schema-validation equivalent.
+## Validation
 
-## Rollback
+Validation performed in the migration workspace:
 
-The migration is **additive** — no OpenShift files were deleted. To roll back to
-the OpenShift deployment:
+- After installing the missing PyYAML module, the requested `yaml.safe_load`
+  loop parses all nine YAML files without warnings.
+- The eight Kubernetes resources in `k8s/` pass strict schema validation with
+  kubeconform 0.7.0.
+- `kubectl kustomize` renders the base and dev, staging, and prod overlays;
+  each seven-resource render passes strict schema validation.
+- The existing Helm chart passes `helm lint`; its four-resource
+  `helm template .` output also passes strict schema validation.
+- The requested `kubectl apply --dry-run=client` checks were attempted for both
+  raw manifests and Helm output. Kubectl 1.37 still requested API discovery and
+  OpenAPI from `localhost:8080`, so both apply stages were blocked because this
+  workspace has no Kubernetes API server. The offline checks above cover YAML,
+  Kustomize, and Kubernetes schemas.
+- The Dockerfile passes hadolint 2.14.0. Its pinned dependencies install, the
+  application compiles, the two-worker Gunicorn command starts, `/health`
+  returns healthy, and a task can be created. A Buildah image build was also
+  attempted, including root/chroot isolation, but the host denies the required
+  `CLONE_NEWUSER` operation. No Docker-compatible daemon is available, so an
+  actual image build remains to be run in CI or a container-enabled workspace.
 
-1. **Remove the Kubernetes deployment** (if applied):
+## Rollback to OpenShift
+
+The migration is additive. The original OpenShift specifications are preserved
+under `openshift-task-manager/openshift-resources/`; only deprecation comments
+were added, so they remain valid input to `oc`.
+
+1. Remove the Kubernetes resources from the environment that was applied:
+
    ```bash
-   kubectl delete -k overlays/<env>   # or: kubectl delete -k k8s
+   # Run only if the optional HPA was applied separately.
+   kubectl delete -f k8s/hpa.yaml --ignore-not-found
+
+   # This also deletes the dedicated task-manager Namespace. Review first if
+   # that Namespace contains anything not managed by these manifests.
+   # Replace ENVIRONMENT with dev, staging, or prod.
+   kubectl delete -k overlays/ENVIRONMENT
    ```
-2. **Re-apply the original OpenShift resources.** They remain intact under
-   `openshift-task-manager/openshift-resources/` (each carries a `DEPRECATED:`
-   banner comment only; the specs are unchanged). On an OpenShift cluster:
+
+2. Against the OpenShift cluster, restore the project and cluster-scoped SCC,
+   then process the preserved Template. The Template recreates the service
+   account, DeploymentConfig, Service, Route, and ImageStream:
+
    ```bash
    oc apply -f openshift-task-manager/openshift-resources/project.yaml
    oc apply -f openshift-task-manager/openshift-resources/scc.yaml
+   oc process -f openshift-task-manager/openshift-resources/template.yaml \
+     | oc apply -f -
+   ```
+
+3. If OpenShift should also resume in-cluster image builds, restore the
+   preserved ImageStream and BuildConfig after replacing the placeholder Git
+   repository in `buildconfig.yaml`:
+
+   ```bash
    oc apply -f openshift-task-manager/openshift-resources/imagestream.yaml
    oc apply -f openshift-task-manager/openshift-resources/buildconfig.yaml
-   oc apply -f openshift-task-manager/openshift-resources/deploymentconfig.yaml
-   # Route/Service are provided via the Template:
-   oc process -f openshift-task-manager/openshift-resources/template.yaml | oc apply -f -
    ```
-   (Remove the `DEPRECATED:` banner comments first if you want clean files;
-   they do not affect `oc` parsing.)
-3. The vendored application source and `Dockerfile` are shared by both models, so
-   no code rollback is required.
+
+The standalone preserved `deploymentconfig.yaml` is available as an alternative
+to the Template-managed DeploymentConfig; do not apply both unless the two
+separate workloads (`task-manager` and `task-manager-dc`) are intentional.

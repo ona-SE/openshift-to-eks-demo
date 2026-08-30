@@ -17,6 +17,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: task-manager
+  namespace: task-manager
   labels:
     app: task-manager
 spec:
@@ -58,10 +59,11 @@ spec:
                 configMapKeyRef:
                   name: task-manager-config
                   key: PORT
-          # Enable once task-manager-secrets contains real keys (see secret.yaml).
-          # envFrom:
-          #   - secretRef:
-          #       name: task-manager-secrets
+          # Reference the empty placeholder Secret without committing values.
+          # Add externally managed keys only if credentials are introduced.
+          envFrom:
+            - secretRef:
+                name: task-manager-secrets
           livenessProbe:
             httpGet:
               path: /health

@@ -12,13 +12,20 @@ This demo showcases:
 
 ## Source Application
 
-The demo uses the **OpenShift Task Manager** application from the [shift-eks](https://github.com/gitpod-samples/shift-eks) repository, which includes:
+The service source and deprecated OpenShift descriptors are retained locally in
+`openshift-task-manager/` for a reproducible migration. The upstream demo is
+the **OpenShift Task Manager** application from the [shift-eks](https://github.com/gitpod-samples/shift-eks) repository, which includes:
+
 - A Flask-based task management application using OpenShift-specific features
 - Complete documentation of OpenShift features that need migration
 - Helm charts with OpenShift-specific resources
 
 ## What's Included
 
+- **`openshift-task-manager/`** - Local application source, container build, and deprecated OpenShift descriptors retained for migration traceability
+- **`k8s/`** - Standard Kubernetes resources for the task-manager service
+- **`overlays/`** - Conservative Kustomize overlays for dev, staging, and prod
+- **`MIGRATION.md`** - Runtime inventory, resource mapping, deployment guidance, validation results, and human-review TODOs
 - **`migrated-helm-chart/`** - Example of the migrated Helm chart (EKS-compatible)
 - **Migration prompt** - Ready-to-use prompt for Ona AI (see below)
 - **Documentation** - This README with setup instructions
