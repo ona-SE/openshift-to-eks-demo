@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Default behavior matches the existing deployment: two replicas with
+# autoscaling disabled. hpa.yaml is available for explicit opt-in.
+namespace: task-manager
+
+labels:
+  - pairs:
+      app: task-manager
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

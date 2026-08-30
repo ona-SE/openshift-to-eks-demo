@@ -1,0 +1,38 @@
+# Replaces the OpenShift Route (in openshift-resources/template.yaml and the
+# upstream Helm route.yaml). Uses the AWS Load Balancer Controller (ALB).
+#
+# The Route used edge TLS termination with insecureEdgeTerminationPolicy:
+# Redirect. The equivalent HTTP->HTTPS redirect and TLS termination on the ALB
+# require an ACM certificate ARN, which is environment-specific.
+#
+# TODO(human-review): to enable HTTPS termination + redirect (matching the
+# OpenShift Route), set a real certificate and switch the listen-ports/ssl
+# annotations. Example:
+#   alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:<region>:<acct>:certificate/<id>
+#   alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+#   alb.ingress.kubernetes.io/ssl-redirect: '443'
+# Until then this serves HTTP only to preserve a working default.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app: task-manager
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: task-manager
+                port:
+                  number: 8080

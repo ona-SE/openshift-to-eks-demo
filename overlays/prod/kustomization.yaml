@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Prod preserves two replicas with autoscaling disabled. Review k8s/hpa.yaml
+# before opting into the existing but previously disabled scaling policy.
+namespace: task-manager
+
+resources:
+  - ../../k8s
+
+labels:
+  - pairs:
+      environment: prod
+    includeSelectors: false
+
+replicas:
+  - name: task-manager
+    count: 2
+
+images:
+  - name: task-manager
+    # TODO(human-review): point at your prod registry/repo and pin an immutable tag.
+    newName: task-manager
+    newTag: latest

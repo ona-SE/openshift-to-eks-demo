@@ -1,0 +1,28 @@
+# Optional HorizontalPodAutoscaler derived from the existing Helm values.
+#
+# Autoscaling was configured as 2-5 replicas at 80% CPU, but was disabled.
+# This resource is therefore intentionally excluded from the base
+# kustomization and all environment overlays. Apply it only after confirming
+# that autoscaling should be enabled and metrics-server is available.
+# TODO(human-review): confirm whether autoscaling should be enabled.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app: task-manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: task-manager
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80

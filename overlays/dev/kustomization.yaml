@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Dev preserves two replicas and disabled autoscaling. Replace the image name
+# and tag only after a dev image has been published.
+namespace: task-manager
+
+resources:
+  - ../../k8s
+
+labels:
+  - pairs:
+      environment: dev
+    includeSelectors: false
+
+replicas:
+  - name: task-manager
+    count: 2
+
+images:
+  - name: task-manager
+    # TODO(human-review): point at your dev registry/repo.
+    newName: task-manager
+    newTag: latest

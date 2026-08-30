@@ -1,0 +1,25 @@
+# DEPRECATED: Migrated to standard Kubernetes.
+# OpenShift ImageStreams have no Kubernetes equivalent. Images are now
+# referenced directly from a container registry (e.g. ECR) via the image
+# field in k8s/deployment.yaml, patched per environment in overlays/*.
+# Kept for reference only; do not deploy.
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: task-manager
+  namespace: task-manager
+  labels:
+    app: task-manager
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+    - name: latest
+      from:
+        kind: DockerImage
+        name: task-manager:latest
+      importPolicy:
+        scheduled: true
+      referencePolicy:
+        type: Local
+
